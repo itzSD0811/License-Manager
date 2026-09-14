@@ -176,11 +176,18 @@ export default function LicensesClientUI({ licenses, products }: { licenses: any
                       {/* MACHINE IDENTITY */}
                       <td className="px-6 py-4">
                         {hasInstalls ? (
-                          <div className="flex items-center gap-2">
-                            <Cpu className="w-4 h-4 text-green-500" />
-                            <div>
-                              <p className="text-[12px] font-mono font-bold text-gray-900">{firstInstall.ipAddress || firstInstall.installationId.substring(0,8)}</p>
-                              <p className="text-[10px] text-gray-400">Binded Host</p>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <Cpu className="w-4 h-4 text-green-500" />
+                              <span className="text-[11px] font-mono font-bold text-gray-900" title={firstInstall.installationId}>
+                                HWID: {firstInstall.installationId.length > 12 ? firstInstall.installationId.substring(0, 12) + "..." : firstInstall.installationId}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Globe2 className="w-4 h-4 text-blue-500" />
+                              <span className="text-[11px] font-mono font-bold text-gray-900">
+                                IP: {firstInstall.ipAddress || "Unknown"}
+                              </span>
                             </div>
                           </div>
                         ) : (
