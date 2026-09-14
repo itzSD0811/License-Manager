@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  builderId String
+  builder   Builder  @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  title     String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  link      String?  // Optional link to click (e.g. /builder/dashboard/licenses)
+  createdAt DateTime @default(now())
+
+  @@index([builderId])
+}
+
+model Builder {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Multi-tenant relations
+  products             Product[]
+  customers            Customer[]
+  licenses             License[]
+  apiLogs              ApiLog[]
+  softwareRepositories SoftwareRepository[]
+  settings             BuilderSettings?
+  notifications        Notification[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  builderId   String
+  githubRepo  String?
+  githubToken String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  builder  Builder   @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  licenses License[]
+
+  @@index([builderId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email         String
+  countryRegion String?
+  builderId     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  builder  Builder   @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  licenses License[]
+
+  @@index([builderId])
+}
+
+model License {
+  id        String    @id @default(cuid())
+  key       String    @unique
+  builderId String
+  productId String
+  customerId String
+  status    String    @default("Not Activated") // Active, Expired, Disabled, Not Activated, Deleted
+  isLocked  Boolean   @default(false)
+  isFrozen  Boolean   @default(false)
+  rateLimit       Int?      // Max request count
+  rateLimitWindow String?   // "days" or "hours"
+  rateLimitHits   Int       @default(0)
+  rateLimitResetAt DateTime @default(now())
+  
+  expiresAt DateTime?
+  expireYears Int?
+  expireMonths Int?
+  expireDays Int?
+  startAtActivation Boolean @default(false)
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  customerLoginFails Int @default(0)
+
+  builder  Builder  @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  apiLogs  ApiLog[]
+  installations LicenseInstallation[]
+  customerOTPs  CustomerOTP[]
+
+  @@index([builderId])
+  @@index([productId])
+  @@index([customerId])
+}
+
+model CustomerOTP {
+  id        String   @id @default(cuid())
+  email     String
+  licenseId String
+  otpHash   String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  license   License  @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([licenseId])
+}
+
+model LicenseInstallation {
+  id             String   @id @default(cuid())
+  installationId String
+  licenseId      String
+  ipAddress      String?
+  os             String?
+  appVersion     String?
+  lastSeenAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, licenseId])
+  @@index([licenseId])
+}
+
+model ApiLog {
+  id             String   @id @default(cuid())
+  builderId      String
+  licenseId      String?
+  endpoint       String
+  ipAddress      String?
+  installationId String?
+  statusCode     Int
+  errorType      String?
+  responseTimeMs Int?
+  createdAt      DateTime @default(now())
+
+  builder Builder  @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  license License? @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+
+  @@index([builderId])
+  @@index([licenseId])
+}
+
+model SoftwareRepository {
+  id         String   @id @default(cuid())
+  builderId  String
+  repository String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+
+  @@index([builderId])
+}
+
+model BuilderSettings {
+  id               String   @id @default(cuid())
+  builderId        String   @unique
+  name             String?
+  avatarUrl        String?
+  theme            String   @default("light")
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?  // Hashed or encrypted TOTP secret
+  
+  // Mail configuration
+  smtpHost         String?
+  smtpPort         Int?
+  smtpUser         String?
+  smtpPassword     String?
+  smtpFrom         String?
+  mailBrandLogo    String?
+  mailTermsLink    String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  builder Builder @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  backupCodes TwoFactorBackupCode[]
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String
+  device    String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([ipAddress])
+}
+
+model TwoFactorBackupCode {
+  id               String   @id @default(cuid())
+  builderSettingsId String
+  codeHash         String   // Hashed backup code
+  used             Boolean  @default(false)
+  usedAt           DateTime?
+  createdAt        DateTime @default(now())
+
+  builderSettings BuilderSettings @relation(fields: [builderSettingsId], references: [id], onDelete: Cascade)
+
+  @@index([builderSettingsId])
+}
