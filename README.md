@@ -25,18 +25,28 @@ A high-performance, edge-ready licensing engine and customer portal. Securely is
 
 2. **Environment Variables (`.env`)**
    ```env
-   DATABASE_URL="mysql://user:pass@localhost:3306/db"
-   NEXT_PUBLIC_APP_URL="http://localhost:3000"
-   
-   # Security Secrets (Must be 32 bytes)
+   # Database
+   DATABASE_URL="mysql://USER:PASSWORD@HOST:PORT/DATABASE"
+
+   # Secret Routing (MOD-02)
+   # Example: https://yourdomain.com/secret1/secret2
+   SECRET_KEY1="secret1"
+   SECRET_KEY2="secret2"
+
+   # Firebase Client Configuration
+   NEXT_PUBLIC_FIREBASE_API_KEY=""
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=""
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=""
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=""
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=""
+   NEXT_PUBLIC_FIREBASE_APP_ID=""
+
+   # Secrets
    LICENSE_KEY_SECRET="32-byte-secret-for-licenses-----"
    ENCRYPTION_KEY="32-byte-encryption-key-for-pats"
    SESSION_SECRET="your-session-secret-here"
-   
-   # Admin Routing (/secret1/secret2/dashboard)
-   SECRET_KEY1="secret1"
-   SECRET_KEY2="secret2"
-   
+  
+   # Mail Configuration  
    # SMTP for OTP Emails
    MAIL_HOST="smtp.domain.com"
    MAIL_PORT="465"
@@ -44,6 +54,8 @@ A high-performance, edge-ready licensing engine and customer portal. Securely is
    MAIL_PASSWORD="password"
    MAIL_FROM_NAME="License Portal"
    MAIL_FROM_ADDRESS="admin@domain.com"
+   MAIL_ENCRYPTION=ssl
+   MAIL_AUTH_TYPE=LOGIN
    ```
 
 3. **Initialize & Run**
