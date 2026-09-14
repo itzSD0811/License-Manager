@@ -61,6 +61,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "License is bound to another machine or unassigned" }, { status: 403 });
     }
 
+    // Strict IP checking for already bound machines
+    const isLocal = ipAddress === "::1" || ipAddress === "127.0.0.1" || ipAddress.includes("127.0.0.1");
+    if (!isLocal && existingInstall.ipAddress && existingInstall.ipAddress !== ipAddress) {
+      statusCode = 403;
+      errorType = "IP_MISMATCH";
+      return NextResponse.json({ success: false, error: "Machine IP address does not match the originally bound IP." }, { status: 403 });
+    }
+
     // Rate Limiting Check
     if (license.rateLimit && license.rateLimitWindow) {
       const now = new Date();

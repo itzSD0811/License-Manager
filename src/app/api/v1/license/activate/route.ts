@@ -48,6 +48,14 @@ export async function POST(request: Request) {
         errorType = "HOST_MISMATCH";
         return NextResponse.json({ success: false, error: "License is already bound to another machine" }, { status: 403 });
       }
+      
+      // Strict IP checking for already bound machines
+      const isLocal = ipAddress === "::1" || ipAddress === "127.0.0.1" || ipAddress.includes("127.0.0.1");
+      if (!isLocal && existingInstall.ipAddress && existingInstall.ipAddress !== ipAddress) {
+        statusCode = 403;
+        errorType = "IP_MISMATCH";
+        return NextResponse.json({ success: false, error: "Machine IP address does not match the originally bound IP." }, { status: 403 });
+      }
     }
 
     // Create or update installation
@@ -64,22 +72,21 @@ export async function POST(request: Request) {
 
     let newExpiresAt = license.expiresAt;
     
-    if (license.status === "Not Activated") {
-      let dataToUpdate: any = { status: "Active" };
-      
-      if (license.startAtActivation && !license.expiresAt) {
-        if (license.expireYears || license.expireMonths || license.expireDays) {
-          const d = new Date();
-          if (license.expireYears) d.setFullYear(d.getFullYear() + license.expireYears);
-          if (license.expireMonths) d.setMonth(d.getMonth() + license.expireMonths);
-          if (license.expireDays) d.setDate(d.getDate() + license.expireDays);
-          dataToUpdate.expiresAt = d;
-          newExpiresAt = d;
-        }
+    // Always enforce status update to Active upon successful activation
+    let dataToUpdate: any = { status: "Active" };
+    
+    if (license.status === "Not Activated" && license.startAtActivation && !license.expiresAt) {
+      if (license.expireYears || license.expireMonths || license.expireDays) {
+        const d = new Date();
+        if (license.expireYears) d.setFullYear(d.getFullYear() + license.expireYears);
+        if (license.expireMonths) d.setMonth(d.getMonth() + license.expireMonths);
+        if (license.expireDays) d.setDate(d.getDate() + license.expireDays);
+        dataToUpdate.expiresAt = d;
+        newExpiresAt = d;
       }
-
-      await prisma.license.update({ where: { id: license.id }, data: dataToUpdate });
     }
+
+    await prisma.license.update({ where: { id: license.id }, data: dataToUpdate });
 
     try {
       const { sendMail } = await import("@/lib/mailer");

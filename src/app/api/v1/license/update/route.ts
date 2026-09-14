@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const license = await prisma.license.findUnique({
       where: { key },
-      include: { product: true, builder: true }
+      include: { product: true, builder: true, installations: true }
     });
 
     if (!license) {
@@ -30,12 +30,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "License has expired" }, { status: 403 });
     }
 
+    const ipAddress = req.headers.get("x-forwarded-for") || "unknown";
+
     if (installationId) {
-      const isBound = await prisma.licenseInstallation.findFirst({
-        where: { licenseId: license.id, installationId }
-      });
-      if (!isBound) {
-        return NextResponse.json({ success: false, message: "Installation ID does not match or is missing" }, { status: 403 });
+      let statusCode = 403;
+      let errorType = "";
+      // Check machine binding
+      const existingInstall = license.installations.find((i: any) => i.installationId === installationId);
+      if (!existingInstall) {
+        statusCode = 403;
+        errorType = "HOST_MISMATCH";
+        return NextResponse.json({ success: false, error: "License is bound to another machine or unassigned" }, { status: 403 });
+      }
+
+      // Strict IP checking for already bound machines
+      const isLocal = ipAddress === "::1" || ipAddress === "127.0.0.1" || ipAddress.includes("127.0.0.1");
+      if (!isLocal && existingInstall.ipAddress && existingInstall.ipAddress !== ipAddress) {
+        statusCode = 403;
+        errorType = "IP_MISMATCH";
+        return NextResponse.json({ success: false, error: "Machine IP address does not match the originally bound IP." }, { status: 403 });
       }
     }
 
