@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import LicensesClientUI from "./ClientUI";
 
@@ -21,3 +22,4 @@ export default async function LicensesPage() {
     <LicensesClientUI licenses={licenses} products={products} />
   );
 }
+

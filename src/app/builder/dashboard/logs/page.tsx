@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import ApiLogsClientUI from "./ClientUI";
 
@@ -13,3 +14,4 @@ export default async function ApiLogsPage() {
     <ApiLogsClientUI initialLogs={logs} />
   );
 }
+

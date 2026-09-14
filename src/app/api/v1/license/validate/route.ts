@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { logApiRequest } from '@/lib/api-logger';
+import { revalidatePath } from 'next/cache';
 
 const prisma = new PrismaClient();
 
@@ -11,7 +12,8 @@ export async function POST(request: Request) {
   let licenseId = undefined;
   let builderId = undefined;
 
-  const ipAddress = request.headers.get("x-forwarded-for") || "unknown";
+  const forwarded = request.headers.get("x-forwarded-for");
+  const ipAddress = forwarded ? forwarded.split(",")[0].trim() : "unknown";
 
   try {
     const body = await request.json();
@@ -50,6 +52,38 @@ export async function POST(request: Request) {
     if (license.expiresAt && license.expiresAt < new Date()) {
       statusCode = 403;
       errorType = "EXPIRED";
+
+      // Update status to Expired if not already
+      if (license.status !== "Expired") {
+        await prisma.license.update({ where: { id: license.id }, data: { status: "Expired" } });
+
+        // Send expiry notification email
+        try {
+          const customer = await prisma.customer.findUnique({ where: { id: license.customerId } });
+          if (customer) {
+            const { sendMail } = await import("@/lib/mailer");
+            const product = await prisma.product.findUnique({ where: { id: license.productId } });
+            await sendMail({
+              to: customer.email,
+              subject: `Your license for ${product?.name || "your product"} has expired`,
+              html: `
+                <h2>Hello ${customer.name},</h2>
+                <p>Your license for <strong>${product?.name || "your product"}</strong> has expired on <strong>${new Date(license.expiresAt).toLocaleDateString()}</strong>.</p>
+                <p>Please login to the <a href="${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login">Customer Portal</a> and request a renewal to restore access.</p>
+                <p style="color: #888; font-size: 12px;">License ID: ${license.id}</p>
+              `
+            });
+          }
+        } catch (e) {
+          console.error("Failed to send expiry email", e);
+        }
+
+        try {
+          revalidatePath("/builder/dashboard/licenses");
+          revalidatePath("/dashboard");
+        } catch (e) {}
+      }
+
       return NextResponse.json({ success: false, error: "License is expired" }, { status: 403 });
     }
 
@@ -86,7 +120,8 @@ export async function POST(request: Request) {
           errorType = "RATE_LIMIT_EXCEEDED";
           return NextResponse.json({ success: false, error: "Rate limit exceeded" }, { status: 429 });
         } else {
-          await prisma.license.update({ where: { id: license.id }, data: { rateLimitHits: { increment: 1 } } });
+          const newHits = (license.rateLimitHits || 0) + 1;
+          await prisma.license.update({ where: { id: license.id }, data: { rateLimitHits: newHits } });
         }
       }
     }
@@ -96,6 +131,13 @@ export async function POST(request: Request) {
       where: { id: existingInstall.id },
       data: { lastSeenAt: new Date(), ipAddress }
     });
+
+    try {
+      revalidatePath("/builder/dashboard/licenses");
+      revalidatePath("/builder/dashboard");
+      revalidatePath("/dashboard/status");
+      revalidatePath("/dashboard/usage");
+    } catch (e) {}
 
     return NextResponse.json({ 
       success: true, 

@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import SettingsClientUI from "./ClientUI";
 
@@ -34,3 +35,4 @@ export default async function SettingsPage() {
     <SettingsClientUI builder={builder} loginAttempts={loginAttempts} />
   );
 }
+

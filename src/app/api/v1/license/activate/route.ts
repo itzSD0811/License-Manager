@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { logApiRequest } from '@/lib/api-logger';
+import { revalidatePath } from 'next/cache';
 
 const prisma = new PrismaClient();
 
@@ -11,7 +12,8 @@ export async function POST(request: Request) {
   let licenseId = undefined;
   let builderId = undefined;
 
-  const ipAddress = request.headers.get("x-forwarded-for") || "unknown";
+  const forwarded = request.headers.get("x-forwarded-for");
+  const ipAddress = forwarded ? forwarded.split(",")[0].trim() : "unknown";
 
   try {
     const body = await request.json();
@@ -72,6 +74,28 @@ export async function POST(request: Request) {
 
     let newExpiresAt = license.expiresAt;
     
+    // Rate Limiting Check
+    if (license.rateLimit && license.rateLimitWindow) {
+      const now = new Date();
+      let windowMs = 24 * 60 * 60 * 1000; // days
+      if (license.rateLimitWindow === "hours") windowMs = 60 * 60 * 1000;
+      
+      const timeSinceReset = now.getTime() - license.rateLimitResetAt.getTime();
+      
+      if (timeSinceReset > windowMs) {
+        await prisma.license.update({ where: { id: license.id }, data: { rateLimitHits: 1, rateLimitResetAt: now } });
+      } else {
+        if (license.rateLimitHits >= license.rateLimit) {
+          statusCode = 429;
+          errorType = "RATE_LIMIT_EXCEEDED";
+          return NextResponse.json({ success: false, error: "Rate limit exceeded" }, { status: 429 });
+        } else {
+          const newHits = (license.rateLimitHits || 0) + 1;
+          await prisma.license.update({ where: { id: license.id }, data: { rateLimitHits: newHits } });
+        }
+      }
+    }
+
     // Always enforce status update to Active upon successful activation
     let dataToUpdate: any = { status: "Active" };
     
@@ -102,6 +126,12 @@ export async function POST(request: Request) {
     } catch (e) {
       console.error("Failed to send activation email", e);
     }
+
+    try {
+      revalidatePath("/builder/dashboard/licenses");
+      revalidatePath("/builder/dashboard");
+      revalidatePath("/dashboard/status");
+    } catch (e) {}
 
     return NextResponse.json({ 
       success: true, 

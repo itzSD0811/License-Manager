@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ShieldAlert, CheckCircle2, XCircle, Calendar, ShieldCheck } from "lucide-react";
+import { Activity, ShieldAlert, CheckCircle2, XCircle, Calendar, ShieldCheck, Cpu, Globe2, AlertTriangle, Clock, Zap } from "lucide-react";
 
 export default function DashboardClientUI({ license, stats }: { license: any, stats: any }) {
   const statusColors: any = {
@@ -11,6 +11,23 @@ export default function DashboardClientUI({ license, stats }: { license: any, st
     "FROZEN": "bg-blue-50 text-blue-600"
   };
 
+  const firstInstall = license.installations && license.installations.length > 0 ? license.installations[0] : null;
+
+  // Expiry calculations
+  const now = new Date();
+  const expiresAt = license.expiresAt ? new Date(license.expiresAt) : null;
+  const isExpired = expiresAt ? now > expiresAt : false;
+  let daysRemaining: number | null = null;
+  if (expiresAt && !isExpired) {
+    daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  // Rate limit calculations
+  const rateLimitHits = license.rateLimitHits || 0;
+  const rateLimit = license.rateLimit || 0;
+  const isRateLimitExceeded = rateLimit > 0 && rateLimitHits >= rateLimit;
+  const usagePercent = rateLimit > 0 ? Math.min(100, Math.round((rateLimitHits / rateLimit) * 100)) : 0;
+
   return (
     <div className="max-w-6xl space-y-8">
       
@@ -19,6 +36,45 @@ export default function DashboardClientUI({ license, stats }: { license: any, st
         <h1 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Overview</h1>
         <p className="text-sm text-gray-500 font-medium">Manage your license and monitor API usage.</p>
       </div>
+
+      {/* Alert Cards */}
+      {isExpired && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-red-700">License Expired</h3>
+            <p className="text-sm text-red-600 font-medium mt-1">Your license expired on {expiresAt!.toLocaleDateString()}. Please contact your provider to renew.</p>
+          </div>
+        </div>
+      )}
+
+      {!isExpired && daysRemaining !== null && daysRemaining <= 7 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-amber-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-amber-700">
+              {daysRemaining === 0 ? "License expires today!" : `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining`}
+            </h3>
+            <p className="text-sm text-amber-600 font-medium mt-1">Your license will expire on {expiresAt!.toLocaleDateString()}. Consider requesting a renewal soon.</p>
+          </div>
+        </div>
+      )}
+
+      {isRateLimitExceeded && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
+            <Zap className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-orange-700">Rate Limit Exceeded</h3>
+            <p className="text-sm text-orange-600 font-medium mt-1">You have used all {rateLimit} API requests for this {license.rateLimitWindow === "hours" ? "hour" : "day"}. Request a reset or wait for the next window.</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -58,7 +114,7 @@ export default function DashboardClientUI({ license, stats }: { license: any, st
               <div>
                 <p className="text-[11px] font-bold text-gray-400 mb-2">STATUS</p>
                 <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black tracking-wide uppercase ${statusColors[license.status] || "bg-gray-100 text-gray-600"}`}>
-                  {license.status}
+                  {isExpired ? "Expired" : license.status}
                 </span>
               </div>
 
@@ -66,11 +122,54 @@ export default function DashboardClientUI({ license, stats }: { license: any, st
                 <p className="text-[11px] font-bold text-gray-400 mb-1">EXPIRES AT</p>
                 <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
                   <Calendar className="w-4 h-4 text-gray-400" />
-                  {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : "Never"}
+                  {expiresAt ? expiresAt.toLocaleDateString() : "Never"}
+                </div>
+                {!isExpired && daysRemaining !== null && daysRemaining <= 30 && (
+                  <p className={`text-xs font-bold mt-1 ${daysRemaining <= 7 ? "text-red-500" : "text-amber-500"}`}>
+                    {daysRemaining === 0 ? "Expires today!" : `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining`}
+                  </p>
+                )}
+                {isExpired && (
+                  <p className="text-xs font-bold mt-1 text-red-500">License Expired</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 mb-1">HARDWARE ID</p>
+                <p className="font-mono text-sm font-bold text-gray-900">
+                  {firstInstall ? firstInstall.installationId : "Unassigned"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 mb-1">BOUND IP</p>
+                <div className="flex items-center gap-2">
+                  <Globe2 className="w-4 h-4 text-blue-500" />
+                  <p className="font-mono text-sm font-bold text-gray-900">
+                    {firstInstall ? (firstInstall.ipAddress || "Unknown") : "Unassigned"}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Rate Limit Mini Card */}
+          {rateLimit > 0 && (
+            <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-4">API Rate Limit</h3>
+              <div className="flex justify-between items-end mb-2">
+                <p className="text-2xl font-black text-gray-900">{rateLimitHits} <span className="text-sm text-gray-400 font-bold">/ {rateLimit}</span></p>
+                <p className={`text-sm font-black ${usagePercent >= 100 ? "text-red-500" : usagePercent > 75 ? "text-orange-500" : "text-blue-600"}`}>{usagePercent}%</p>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-1000 ${usagePercent >= 100 ? "bg-red-500" : usagePercent > 75 ? "bg-orange-500" : "bg-blue-500"}`} 
+                  style={{ width: `${usagePercent}%` }}
+                ></div>
+              </div>
+              <p className="text-[10px] font-bold text-gray-400 mt-2 uppercase tracking-widest">per {license.rateLimitWindow === "hours" ? "hour" : "day"}</p>
+            </div>
+          )}
 
         </div>
 

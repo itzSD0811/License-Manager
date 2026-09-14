@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import SimulatorClientUI from "./ClientUI";
 
@@ -14,3 +15,4 @@ export default async function SimulatorPage() {
     <SimulatorClientUI licenses={licenses} />
   );
 }
+

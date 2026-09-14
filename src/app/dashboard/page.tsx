@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { cookies } from "next/headers";
 import { PrismaClient } from "@prisma/client";
 import { redirect } from "next/navigation";
@@ -15,9 +16,10 @@ export default async function DashboardPage() {
     where: { id: session },
     include: {
       product: true,
+      installations: true,
       apiLogs: {
         orderBy: { createdAt: "desc" },
-        take: 100 // We'll analyze the last 100 requests for performance, or fetch them all if needed
+        take: 100
       }
     }
   });
@@ -39,3 +41,4 @@ export default async function DashboardPage() {
     />
   );
 }
+

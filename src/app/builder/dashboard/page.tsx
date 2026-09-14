@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import { CheckCircle2, Zap, Clock, Activity, AlertCircle, Monitor, Box, ShieldAlert } from "lucide-react";
 
@@ -214,3 +215,4 @@ export default async function DashboardOverview() {
     </div>
   );
 }
+

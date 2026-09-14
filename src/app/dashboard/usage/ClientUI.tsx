@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, RefreshCw, Activity, AlertCircle } from "lucide-react";
+import { CheckCircle2, RefreshCw, Activity, AlertCircle, Zap } from "lucide-react";
 import { requestRateLimitReset } from "@/app/actions/customerRequests";
 
 export default function UsageClientUI({ license }: { license: any }) {
@@ -16,7 +16,10 @@ export default function UsageClientUI({ license }: { license: any }) {
     setLoadingRate(false);
   };
 
-  const usagePercent = Math.min(100, Math.round((license.requestsCount / Math.max(1, license.rateLimit)) * 100));
+  const rateLimitHits = license.rateLimitHits || 0;
+  const rateLimit = license.rateLimit || 0;
+  const isRateLimitExceeded = rateLimit > 0 && rateLimitHits >= rateLimit;
+  const usagePercent = rateLimit > 0 ? Math.min(100, Math.round((rateLimitHits / rateLimit) * 100)) : 0;
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -25,25 +28,48 @@ export default function UsageClientUI({ license }: { license: any }) {
         <p className="text-sm text-gray-500 font-medium">Monitor your request quotas and request limit adjustments.</p>
       </div>
 
+      {/* Rate Limit Exceeded Alert */}
+      {isRateLimitExceeded && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+            <Zap className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-red-700">Rate Limit Exceeded</h3>
+            <p className="text-sm text-red-600 font-medium mt-1">
+              You have used all {rateLimit} API requests for this {license.rateLimitWindow === "hours" ? "hour" : "day"}. Your API access is temporarily blocked. Request a reset below or wait for the next window.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Current API Usage</h3>
         
-        <div className="mb-6">
-          <div className="flex justify-between items-end mb-2">
-            <div>
-              <p className="text-3xl font-black text-gray-900">{license.requestsCount} <span className="text-lg text-gray-400 font-bold">/ {license.rateLimit}</span></p>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Requests Made</p>
+        {rateLimit > 0 ? (
+          <div className="mb-6">
+            <div className="flex justify-between items-end mb-2">
+              <div>
+                <p className="text-3xl font-black text-gray-900">{rateLimitHits} <span className="text-lg text-gray-400 font-bold">/ {rateLimit}</span></p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Requests Made per {license.rateLimitWindow === "hours" ? "hour" : "day"}</p>
+              </div>
+              <p className={`text-xl font-black ${usagePercent >= 100 ? "text-red-500" : usagePercent > 75 ? "text-orange-500" : "text-blue-600"}`}>{usagePercent}%</p>
             </div>
-            <p className="text-xl font-black text-blue-600">{usagePercent}%</p>
+            
+            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-1000 ${usagePercent >= 100 ? 'bg-red-500' : usagePercent > 75 ? 'bg-orange-500' : 'bg-blue-500'}`} 
+                style={{ width: `${usagePercent}%` }}
+              ></div>
+            </div>
           </div>
-          
-          <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-            <div 
-              className={`h-full rounded-full transition-all duration-1000 ${usagePercent > 90 ? 'bg-red-500' : usagePercent > 75 ? 'bg-orange-500' : 'bg-blue-500'}`} 
-              style={{ width: `${usagePercent}%` }}
-            ></div>
+        ) : (
+          <div className="text-center py-8">
+            <Activity className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm font-bold text-gray-900">No Rate Limit Set</p>
+            <p className="text-xs text-gray-500 font-medium mt-1">Your license has unlimited API requests.</p>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col md:flex-row items-start gap-6">

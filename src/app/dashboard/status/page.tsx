@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -44,3 +45,4 @@ export default async function StatusPage() {
 
   return <StatusClientUI license={safeLicense} />;
 }
+

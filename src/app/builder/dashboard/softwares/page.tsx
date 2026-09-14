@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { PrismaClient } from "@prisma/client";
 import SoftwaresClientUI from "./ClientUI";
 
@@ -10,3 +11,4 @@ export default async function SoftwaresPage() {
 
   return <SoftwaresClientUI products={products} />;
 }
+

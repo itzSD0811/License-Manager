@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, RefreshCw, Send, Clock, Calendar } from "lucide-react";
+import { CheckCircle2, RefreshCw, Send, Clock, Calendar, AlertTriangle } from "lucide-react";
 import { requestRenewal } from "@/app/actions/customerRequests";
 
 export default function RenewalClientUI({ license }: { license: any }) {
@@ -16,6 +16,14 @@ export default function RenewalClientUI({ license }: { license: any }) {
     setLoadingRenewal(false);
   };
 
+  const now = new Date();
+  const expiresAt = license.expiresAt ? new Date(license.expiresAt) : null;
+  const isExpired = expiresAt ? now > expiresAt : false;
+  let daysRemaining: number | null = null;
+  if (expiresAt && !isExpired) {
+    daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
   return (
     <div className="max-w-4xl space-y-8">
       <div>
@@ -23,18 +31,54 @@ export default function RenewalClientUI({ license }: { license: any }) {
         <p className="text-sm text-gray-500 font-medium">Extend your license validity and request renewals.</p>
       </div>
 
+      {/* Expired Alert */}
+      {isExpired && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-red-700">License Expired</h3>
+            <p className="text-sm text-red-600 font-medium mt-1">Your license expired on {expiresAt!.toLocaleDateString()}. Please send a renewal request below to restore access.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Expiry Warning */}
+      {!isExpired && daysRemaining !== null && daysRemaining <= 7 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-amber-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-amber-700">
+              {daysRemaining === 0 ? "License expires today!" : `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining`}
+            </h3>
+            <p className="text-sm text-amber-600 font-medium mt-1">Your license will expire on {expiresAt!.toLocaleDateString()}. We recommend requesting a renewal now.</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Current Expiration</h3>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-blue-500" />
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isExpired ? "bg-red-50" : "bg-blue-50"}`}>
+              <Calendar className={`w-6 h-6 ${isExpired ? "text-red-500" : "text-blue-500"}`} />
             </div>
             <div>
-              <p className="text-2xl font-black text-gray-900">
-                {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : "Never"}
+              <p className={`text-2xl font-black ${isExpired ? "text-red-600" : "text-gray-900"}`}>
+                {expiresAt ? expiresAt.toLocaleDateString() : "Never"}
               </p>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Status: {license.status}</p>
+              {isExpired ? (
+                <p className="text-xs font-bold text-red-500 uppercase tracking-widest mt-1">License Expired</p>
+              ) : daysRemaining !== null ? (
+                <p className={`text-xs font-bold uppercase tracking-widest mt-1 ${daysRemaining <= 7 ? "text-amber-500" : "text-gray-400"}`}>
+                  {daysRemaining === 0 ? "Expires today" : `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining`}
+                </p>
+              ) : (
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Status: {license.status}</p>
+              )}
             </div>
           </div>
         </div>
