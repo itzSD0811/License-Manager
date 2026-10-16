@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Package, Globe, Edit3, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { Plus, Package, Globe, Edit3, Trash2, Loader2, AlertCircle, KeyRound } from "lucide-react";
 import { CreateProductForm } from "./ClientForm";
 import { EditProductForm } from "./EditForm";
 import { deleteProduct } from "@/app/actions/product";
 import { getProductReleases } from "@/app/actions/github";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // We receive products from the Server Component
 export default function SoftwaresClientUI({ products }: { products: any[] }) {
@@ -135,6 +137,26 @@ export default function SoftwaresClientUI({ products }: { products: any[] }) {
                     <Globe className="w-4 h-4 text-gray-400" />
                     {selectedProduct.githubRepo || "Not linked to GitHub"}
                   </p>
+                  
+                  {selectedProduct.rsaPublicKey && (
+                    <div className="mt-4">
+                      <p className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-1">RSA Public Key</p>
+                      <button 
+                        onClick={() => {
+                          const blob = new Blob([selectedProduct.rsaPublicKey], { type: "text/plain" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `${selectedProduct.name.replace(/\s+/g, '_')}_public.pem`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="text-xs font-bold text-primary hover:text-[#4a46c6] bg-primary/10 px-3 py-1.5 rounded-lg flex items-center gap-2"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" /> Download Public Key (.pem)
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <button 
@@ -193,8 +215,43 @@ export default function SoftwaresClientUI({ products }: { products: any[] }) {
                                 Published {new Date(latestRelease.published_at).toLocaleDateString()}
                               </span>
                             </div>
-                            <div className="text-sm text-gray-600 leading-relaxed font-medium whitespace-pre-wrap max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                              {latestRelease.body}
+                            <div className="max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                              <ReactMarkdown 
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  h1: ({node, ...props}) => <h1 className="text-lg font-black text-gray-900 mb-3 pb-2 border-b border-gray-100" {...props} />,
+                                  h2: ({node, ...props}) => <h2 className="text-base font-bold text-gray-900 mt-4 mb-2" {...props} />,
+                                  h3: ({node, ...props}) => <h3 className="text-sm font-bold text-gray-900 mt-3 mb-2" {...props} />,
+                                  p: ({node, ...props}) => <p className="mb-3 text-gray-600 leading-relaxed text-sm" {...props} />,
+                                  ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-3 space-y-1.5 text-sm text-gray-600 marker:text-gray-400" {...props} />,
+                                  ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-3 space-y-1.5 text-sm text-gray-600" {...props} />,
+                                  li: ({node, ...props}) => <li {...props} />,
+                                  strong: ({node, ...props}) => <strong className="font-bold text-gray-900" {...props} />,
+                                  a: ({node, ...props}) => <a className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
+                                  code: ({node, className, children, ...props}: any) => {
+                                    const match = /language-(\w+)/.exec(className || '')
+                                    const isInline = !match && !className?.includes('language-');
+                                    return isInline ? (
+                                      <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-[13px] font-mono" {...props}>
+                                        {children}
+                                      </code>
+                                    ) : (
+                                      <div className="my-3 rounded-xl overflow-hidden bg-gray-900 border border-gray-800">
+                                        <div className="bg-gray-800/50 px-4 py-2 flex items-center border-b border-gray-700/50">
+                                          <span className="text-xs font-mono text-gray-400">{match?.[1] || 'code'}</span>
+                                        </div>
+                                        <pre className="p-4 overflow-x-auto">
+                                          <code className="text-[13px] font-mono text-gray-300" {...props}>
+                                            {children}
+                                          </code>
+                                        </pre>
+                                      </div>
+                                    )
+                                  }
+                                }}
+                              >
+                                {latestRelease.body}
+                              </ReactMarkdown>
                             </div>
                           </div>
                         )}
@@ -228,8 +285,43 @@ export default function SoftwaresClientUI({ products }: { products: any[] }) {
                                     Published {new Date(previousReleases.find(r => r.tag_name === expandedRelease)!.published_at).toLocaleDateString()}
                                   </span>
                                 </div>
-                                <div className="text-sm text-gray-600 leading-relaxed font-medium whitespace-pre-wrap max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                  {previousReleases.find(r => r.tag_name === expandedRelease)!.body}
+                                <div className="max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                  <ReactMarkdown 
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      h1: ({node, ...props}) => <h1 className="text-lg font-black text-gray-900 mb-3 pb-2 border-b border-gray-100" {...props} />,
+                                      h2: ({node, ...props}) => <h2 className="text-base font-bold text-gray-900 mt-4 mb-2" {...props} />,
+                                      h3: ({node, ...props}) => <h3 className="text-sm font-bold text-gray-900 mt-3 mb-2" {...props} />,
+                                      p: ({node, ...props}) => <p className="mb-3 text-gray-600 leading-relaxed text-sm" {...props} />,
+                                      ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-3 space-y-1.5 text-sm text-gray-600 marker:text-gray-400" {...props} />,
+                                      ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-3 space-y-1.5 text-sm text-gray-600" {...props} />,
+                                      li: ({node, ...props}) => <li {...props} />,
+                                      strong: ({node, ...props}) => <strong className="font-bold text-gray-900" {...props} />,
+                                      a: ({node, ...props}) => <a className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
+                                      code: ({node, className, children, ...props}: any) => {
+                                        const match = /language-(\w+)/.exec(className || '')
+                                        const isInline = !match && !className?.includes('language-');
+                                        return isInline ? (
+                                          <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-[13px] font-mono" {...props}>
+                                            {children}
+                                          </code>
+                                        ) : (
+                                          <div className="my-3 rounded-xl overflow-hidden bg-gray-900 border border-gray-800">
+                                            <div className="bg-gray-800/50 px-4 py-2 flex items-center border-b border-gray-700/50">
+                                              <span className="text-xs font-mono text-gray-400">{match?.[1] || 'code'}</span>
+                                            </div>
+                                            <pre className="p-4 overflow-x-auto">
+                                              <code className="text-[13px] font-mono text-gray-300" {...props}>
+                                                {children}
+                                              </code>
+                                            </pre>
+                                          </div>
+                                        )
+                                      }
+                                    }}
+                                  >
+                                    {previousReleases.find(r => r.tag_name === expandedRelease)!.body}
+                                  </ReactMarkdown>
                                 </div>
                               </div>
                             )}

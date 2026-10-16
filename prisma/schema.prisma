@@ -42,6 +42,10 @@ model Product {
   builderId   String
   githubRepo  String?
   githubToken String?
+  rsaPrivateKey String? @db.Text
+  rsaPublicKey  String? @db.Text
+  latestVersion String?
+  latestZipHash String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -79,6 +83,8 @@ model License {
   rateLimitWindow String?   // "days" or "hours"
   rateLimitHits   Int       @default(0)
   rateLimitResetAt DateTime @default(now())
+  
+  appSecret String?
   
   expiresAt DateTime?
   expireYears Int?

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { logApiRequest } from '@/lib/api-logger';
 import { revalidatePath } from 'next/cache';
+import { isRateLimitExpired } from '@/lib/rate-limit';
 
 const prisma = new PrismaClient();
 
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
   let errorType = undefined;
   let licenseId = undefined;
   let builderId = undefined;
+  let reqInstallationId: string | undefined = undefined;
 
   const forwarded = request.headers.get("x-forwarded-for");
   const ipAddress = forwarded ? forwarded.split(",")[0].trim() : "unknown";
@@ -18,6 +20,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { key, installationId, os, appVersion } = body;
+    reqInstallationId = installationId;
 
     if (!key || !installationId) {
       statusCode = 400;
@@ -25,7 +28,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing key or installationId" }, { status: 400 });
     }
 
-    const license = await prisma.license.findUnique({ where: { key }, include: { installations: true } });
+    const license = await prisma.license.findUnique({ where: { key }, include: { installations: true, product: true } });
 
     if (!license) {
       statusCode = 404;
@@ -36,10 +39,22 @@ export async function POST(request: Request) {
     licenseId = license.id;
     builderId = license.builderId;
 
-    if (license.status === "Disabled" || license.status === "Deleted") {
+    if (license.status === "Disabled" || license.status === "DISABLED" || license.status === "Deleted") {
       statusCode = 403;
       errorType = "LICENSE_DISABLED";
       return NextResponse.json({ success: false, error: `License is ${license.status}` }, { status: 403 });
+    }
+
+    if (license.isFrozen) {
+      statusCode = 403;
+      errorType = "LICENSE_FROZEN";
+      return NextResponse.json({ success: false, error: "License is frozen" }, { status: 403 });
+    }
+
+    if (license.isLocked) {
+      statusCode = 403;
+      errorType = "LICENSE_LOCKED";
+      return NextResponse.json({ success: false, error: "License is locked" }, { status: 403 });
     }
 
     // Check machine binding
@@ -77,12 +92,10 @@ export async function POST(request: Request) {
     // Rate Limiting Check
     if (license.rateLimit && license.rateLimitWindow) {
       const now = new Date();
-      let windowMs = 24 * 60 * 60 * 1000; // days
-      if (license.rateLimitWindow === "hours") windowMs = 60 * 60 * 1000;
+      const isExpired = isRateLimitExpired(license.rateLimitResetAt, license.rateLimitWindow);
       
-      const timeSinceReset = now.getTime() - license.rateLimitResetAt.getTime();
-      
-      if (timeSinceReset > windowMs) {
+      if (isExpired) {
+        // Reset the window for the new calendar day/hour
         await prisma.license.update({ where: { id: license.id }, data: { rateLimitHits: 1, rateLimitResetAt: now } });
       } else {
         if (license.rateLimitHits >= license.rateLimit) {
@@ -133,27 +146,52 @@ export async function POST(request: Request) {
       revalidatePath("/dashboard/status");
     } catch (e) {}
 
-    return NextResponse.json({ 
+    const responseData: any = {
       success: true, 
       message: "License activated successfully",
       expiresAt: newExpiresAt 
-    });
+    };
+
+    if (license.appSecret) {
+      responseData.appSecret = license.appSecret;
+    }
+
+    if (license.product?.rsaPrivateKey) {
+      const { decryptString } = await import("@/lib/encryption");
+      const { signPayload } = await import("@/lib/rsa");
+      
+      try {
+        const privateKeyPEM = decryptString(license.product.rsaPrivateKey);
+        const signature = signPayload(responseData, privateKeyPEM);
+        return NextResponse.json({
+          data: responseData,
+          signature
+        });
+      } catch (err) {
+        console.error("Failed to sign payload", err);
+      }
+    }
+
+    return NextResponse.json(responseData);
 
   } catch (err: any) {
     statusCode = 500;
     errorType = "SERVER_ERROR";
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   } finally {
-    if (builderId) {
+    try {
       await logApiRequest({
-        builderId,
+        builderId: builderId || "unknown",
         licenseId,
         endpoint: "/api/v1/license/activate",
         ipAddress,
+        installationId: reqInstallationId,
         statusCode,
         errorType,
         responseTimeMs: Date.now() - startTime
       });
+    } catch (e) {
+      console.error("Failed to write audit log", e);
     }
   }
 }

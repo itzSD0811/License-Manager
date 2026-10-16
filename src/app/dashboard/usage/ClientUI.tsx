@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, RefreshCw, Activity, AlertCircle, Zap } from "lucide-react";
 import { requestRateLimitReset } from "@/app/actions/customerRequests";
+import { getEffectiveRateLimitHits } from "@/lib/rate-limit";
 
 export default function UsageClientUI({ license }: { license: any }) {
   const [rateMsg, setRateMsg] = useState("");
@@ -16,7 +17,7 @@ export default function UsageClientUI({ license }: { license: any }) {
     setLoadingRate(false);
   };
 
-  const rateLimitHits = license.rateLimitHits || 0;
+  const rateLimitHits = getEffectiveRateLimitHits(license);
   const rateLimit = license.rateLimit || 0;
   const isRateLimitExceeded = rateLimit > 0 && rateLimitHits >= rateLimit;
   const usagePercent = rateLimit > 0 ? Math.min(100, Math.round((rateLimitHits / rateLimit) * 100)) : 0;

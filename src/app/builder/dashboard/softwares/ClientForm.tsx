@@ -12,6 +12,7 @@ export function CreateProductForm({ onClose }: { onClose?: () => void }) {
   const [githubRepo, setGithubRepo] = useState("");
   const [githubToken, setGithubToken] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [rsaAction, setRsaAction] = useState("generate");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -105,6 +106,58 @@ export function CreateProductForm({ onClose }: { onClose?: () => void }) {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="pt-4 border-t border-gray-100">
+        <label className="block text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-3">
+          Ironclad Security Layer (RSA Payload Signing)
+        </label>
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 cursor-pointer group">
+            <input 
+              type="radio" 
+              name="rsaAction" 
+              value="none" 
+              checked={rsaAction === "none"} 
+              onChange={() => setRsaAction("none")} 
+              className="text-primary focus:ring-primary h-4 w-4"
+            />
+            <span className="text-sm font-medium text-gray-700">None (Backwards compatible)</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer group">
+            <input 
+              type="radio" 
+              name="rsaAction" 
+              value="generate" 
+              checked={rsaAction === "generate"} 
+              onChange={() => setRsaAction("generate")} 
+              className="text-primary focus:ring-primary h-4 w-4"
+            />
+            <span className="text-sm font-medium text-gray-700">Auto-Generate 2048-bit RSA Keypair</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer group">
+            <input 
+              type="radio" 
+              name="rsaAction" 
+              value="paste" 
+              checked={rsaAction === "paste"} 
+              onChange={() => setRsaAction("paste")} 
+              className="text-primary focus:ring-primary h-4 w-4"
+            />
+            <span className="text-sm font-medium text-gray-700">I have my own PEM Private Key</span>
+          </label>
+
+          {rsaAction === "paste" && (
+            <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <textarea
+                name="pastedPrivateKey"
+                rows={4}
+                className="block w-full rounded-2xl border-0 bg-[var(--bg-app)] px-4 py-3.5 text-gray-900 font-medium placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-primary focus:outline-none transition-all sm:text-xs font-mono"
+                placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="pt-2">

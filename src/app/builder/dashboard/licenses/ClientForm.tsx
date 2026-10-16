@@ -260,6 +260,22 @@ export function CreateLicenseForm({ products, onClose }: { products: any[], onCl
         </div>
       </div>
 
+      <div className="space-y-1 pt-2">
+        <label htmlFor="appSecret" className="block text-[11px] font-bold text-gray-400 tracking-wider uppercase">
+          App Secret (Optional / RSA Security Layer)
+        </label>
+        <div className="relative">
+          <input
+            type="text"
+            name="appSecret"
+            id="appSecret"
+            className="block w-full rounded-2xl border-0 bg-[var(--bg-app)] px-4 py-3.5 text-gray-900 font-medium placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-primary focus:outline-none transition-all sm:text-sm"
+            placeholder="Leave blank to auto-generate a secure random secret"
+          />
+        </div>
+        <p className="text-[11px] text-gray-400 mt-1">Sent inside the RSA signed payload for Laravel DB decryption.</p>
+      </div>
+
       <div className="pt-2">
         <button
           type="submit"

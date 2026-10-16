@@ -78,6 +78,11 @@ export async function createLicense(formData: FormData) {
   const rateLimitInt = rateLimit ? parseInt(rateLimit, 10) : null;
   const shortId = crypto.randomBytes(3).toString("hex").toUpperCase();
 
+  let appSecret = formData.get("appSecret") as string;
+  if (!appSecret || appSecret.trim() === "") {
+    appSecret = crypto.randomBytes(16).toString("hex");
+  }
+
   await prisma.license.create({
     data: {
       id: shortId,
@@ -93,6 +98,7 @@ export async function createLicense(formData: FormData) {
       startAtActivation,
       rateLimit: rateLimitInt,
       rateLimitWindow: rateLimitInt ? (rateLimitWindow || "days") : null,
+      appSecret
     }
   });
 
@@ -108,7 +114,7 @@ export async function createLicense(formData: FormData) {
       <div style="background: #f4f4f5; padding: 15px; margin: 20px 0; font-family: monospace; font-size: 18px;">
         ${key}
       </div>
-      <p>Login to the <a href="${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login">Customer Portal</a> to manage your license.</p>
+      <p>Login to the <a href="${process.env.APP_URL || "https://license.magneticx.store"}/login">Customer Portal</a> to manage your license.</p>
     `
   });
 

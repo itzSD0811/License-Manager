@@ -11,9 +11,30 @@ export async function createProduct(formData: FormData) {
   const githubRepo = formData.get("githubRepo") as string;
   const githubToken = formData.get("githubToken") as string;
   const email = formData.get("builderEmail") as string;
+  
+  const rsaAction = formData.get("rsaAction") as string; // 'generate', 'paste', or 'none'
+  const pastedPrivateKey = formData.get("pastedPrivateKey") as string;
 
   if (!name || !email) {
     throw new Error("Missing required fields");
+  }
+
+  let rsaPrivateKey: string | null = null;
+  let rsaPublicKey: string | null = null;
+
+  if (rsaAction === "generate") {
+    const { generateRSAKeypair } = await import("@/lib/rsa");
+    const keys = generateRSAKeypair();
+    rsaPrivateKey = encryptString(keys.privateKey);
+    rsaPublicKey = keys.publicKey;
+  } else if (rsaAction === "paste" && pastedPrivateKey) {
+    const { derivePublicKey } = await import("@/lib/rsa");
+    try {
+      rsaPublicKey = derivePublicKey(pastedPrivateKey);
+      rsaPrivateKey = encryptString(pastedPrivateKey);
+    } catch (e) {
+      throw new Error("Invalid Private Key provided");
+    }
   }
 
   // Get or create builder (in case they signed up via Firebase Console manually)
@@ -28,6 +49,8 @@ export async function createProduct(formData: FormData) {
       name,
       githubRepo: githubRepo || null,
       githubToken: githubToken ? encryptString(githubToken) : null,
+      rsaPrivateKey,
+      rsaPublicKey,
       builderId: builder.id,
     }
   });
@@ -52,15 +75,35 @@ export async function updateProduct(formData: FormData) {
   const githubRepo = formData.get("githubRepo") as string;
   const githubToken = formData.get("githubToken") as string;
 
+  const rsaAction = formData.get("rsaAction") as string;
+  const pastedPrivateKey = formData.get("pastedPrivateKey") as string;
+
   if (!id || !name) throw new Error("Missing required fields");
+
+  const updateData: any = {
+    name,
+    githubRepo: githubRepo || null,
+    githubToken: githubToken ? encryptString(githubToken) : null,
+  };
+
+  if (rsaAction === "generate") {
+    const { generateRSAKeypair } = await import("@/lib/rsa");
+    const keys = generateRSAKeypair();
+    updateData.rsaPrivateKey = encryptString(keys.privateKey);
+    updateData.rsaPublicKey = keys.publicKey;
+  } else if (rsaAction === "paste" && pastedPrivateKey) {
+    const { derivePublicKey } = await import("@/lib/rsa");
+    try {
+      updateData.rsaPublicKey = derivePublicKey(pastedPrivateKey);
+      updateData.rsaPrivateKey = encryptString(pastedPrivateKey);
+    } catch (e) {
+      throw new Error("Invalid Private Key provided");
+    }
+  }
 
   await prisma.product.update({
     where: { id },
-    data: {
-      name,
-      githubRepo: githubRepo || null,
-      githubToken: githubToken ? encryptString(githubToken) : null,
-    }
+    data: updateData
   });
 
   revalidatePath("/builder/dashboard/softwares");

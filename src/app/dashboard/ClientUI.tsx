@@ -1,6 +1,7 @@
 "use client";
 
 import { Activity, ShieldAlert, CheckCircle2, XCircle, Calendar, ShieldCheck, Cpu, Globe2, AlertTriangle, Clock, Zap } from "lucide-react";
+import { getEffectiveRateLimitHits } from "@/lib/rate-limit";
 
 export default function DashboardClientUI({ license, stats }: { license: any, stats: any }) {
   const statusColors: any = {
@@ -23,7 +24,7 @@ export default function DashboardClientUI({ license, stats }: { license: any, st
   }
 
   // Rate limit calculations
-  const rateLimitHits = license.rateLimitHits || 0;
+  const rateLimitHits = getEffectiveRateLimitHits(license);
   const rateLimit = license.rateLimit || 0;
   const isRateLimitExceeded = rateLimit > 0 && rateLimitHits >= rateLimit;
   const usagePercent = rateLimit > 0 ? Math.min(100, Math.round((rateLimitHits / rateLimit) * 100)) : 0;

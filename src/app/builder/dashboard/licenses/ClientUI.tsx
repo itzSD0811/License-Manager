@@ -17,6 +17,7 @@ import {
   renewLicense,
   editLicense
 } from "@/app/actions/license";
+import { getEffectiveRateLimitHits } from "@/lib/rate-limit";
 
 export default function LicensesClientUI({ licenses, products }: { licenses: any[], products: any[] }) {
   const [showModal, setShowModal] = useState(false);
@@ -110,7 +111,7 @@ export default function LicensesClientUI({ licenses, products }: { licenses: any
                   if (expiry) {
                     const diffTime = expiry.getTime() - now.getTime();
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    if (diffDays < 0) expiryStr = "Expired";
+                    if (diffDays < 0) expiryStr = "-";
                     else if (diffDays === 0) expiryStr = "Expires today";
                     else if (diffDays > 365) expiryStr = `${Math.floor(diffDays/365)} years left`;
                     else if (diffDays > 30) expiryStr = `${Math.floor(diffDays/30)} months left`;
@@ -119,6 +120,11 @@ export default function LicensesClientUI({ licenses, products }: { licenses: any
 
                   const hasInstalls = license.installations && license.installations.length > 0;
                   const firstInstall = hasInstalls ? license.installations[0] : null;
+
+                  let computedStatus = license.status;
+                  if (expiry && expiry.getTime() - now.getTime() < 0 && computedStatus !== "Disabled" && computedStatus !== "Deleted") {
+                    computedStatus = "Expired";
+                  }
 
                   return (
                     <tr key={license.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -168,7 +174,7 @@ export default function LicensesClientUI({ licenses, products }: { licenses: any
                         <span className="text-sm font-bold text-gray-900">{license.product?.name}</span>
                         {license.rateLimit && (
                           <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                            {license.rateLimitHits}/{license.rateLimit} req/{license.rateLimitWindow}
+                            {getEffectiveRateLimitHits(license)}/{license.rateLimit} req/{license.rateLimitWindow}
                           </p>
                         )}
                       </td>
@@ -198,7 +204,7 @@ export default function LicensesClientUI({ licenses, products }: { licenses: any
                       {/* EXPIRY */}
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <span className={`text-sm font-bold ${expiryStr === "Expired" ? "text-red-500" : "text-gray-900"}`}>
+                          <span className={`text-sm font-bold ${expiryStr === "-" ? "text-red-500" : "text-gray-900"}`}>
                             {expiryStr}
                           </span>
                           <span className="text-[10px] text-gray-400 mt-0.5">
@@ -211,11 +217,11 @@ export default function LicensesClientUI({ licenses, products }: { licenses: any
                       <td className="px-6 py-4">
                         <div className="flex flex-col items-start gap-1">
                           <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black tracking-wider uppercase border ${
-                            license.status === "Active" ? "bg-green-50 text-green-600 border-green-200" :
-                            license.status === "Not Activated" ? "bg-gray-50 text-gray-500 border-gray-200" :
+                            computedStatus === "Active" ? "bg-green-50 text-green-600 border-green-200" :
+                            computedStatus === "Not Activated" ? "bg-gray-50 text-gray-500 border-gray-200" :
                             "bg-red-50 text-red-600 border-red-200"
                           }`}>
-                            {license.status}
+                            {computedStatus}
                           </span>
                           
                           <div className="flex gap-1">

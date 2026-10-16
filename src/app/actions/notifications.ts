@@ -19,3 +19,17 @@ export async function markNotificationsRead(builderId: string) {
     data: { isRead: true }
   });
 }
+
+export async function clearAllNotifications(builderId: string) {
+  await prisma.notification.deleteMany({
+    where: { builderId }
+  });
+  revalidatePath("/builder/dashboard");
+}
+
+export async function deleteNotification(id: string, builderId: string) {
+  await prisma.notification.deleteMany({
+    where: { id, builderId }
+  });
+  revalidatePath("/builder/dashboard");
+}

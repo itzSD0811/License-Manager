@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { logApiRequest } from "@/lib/api-logger";
+import { isRateLimitExpired } from "@/lib/rate-limit";
 
 const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+  let statusCode = 200;
+  let errorType: string | undefined = undefined;
+  let licenseId: string | undefined = undefined;
+  let builderId: string | undefined = undefined;
+  let reqInstallationId: string | undefined = undefined;
+
+  const forwarded = req.headers.get("x-forwarded-for");
+  const ipAddress = forwarded ? forwarded.split(",")[0].trim() : "unknown";
+
   try {
-    const forwarded = req.headers.get("x-forwarded-for");
-    const ipAddress = forwarded ? forwarded.split(",")[0].trim() : "unknown";
     const contentType = req.headers.get("content-type") || "";
     let key, installationId, Relesename;
 
@@ -22,7 +32,11 @@ export async function POST(req: Request) {
       Relesename = formData.get("Relesename") as string;
     }
 
+    reqInstallationId = installationId;
+
     if (!key) {
+      statusCode = 400;
+      errorType = "MISSING_PARAMS";
       return NextResponse.json({ success: false, message: "License key is required" }, { status: 400 });
     }
 
@@ -32,20 +46,40 @@ export async function POST(req: Request) {
     });
 
     if (!license) {
+      statusCode = 404;
+      errorType = "INVALID_KEY";
       return NextResponse.json({ success: false, message: "Invalid license key" }, { status: 404 });
     }
 
-    if (license.status === "FROZEN" || license.status === "DISABLED") {
+    licenseId = license.id;
+    builderId = license.builderId;
+
+    // Check ALL disabled/frozen/locked states
+    if (license.status === "Disabled" || license.status === "DISABLED" || license.status === "Deleted" || license.status === "FROZEN") {
+      statusCode = 403;
+      errorType = "LICENSE_DISABLED";
       return NextResponse.json({ success: false, message: `License is ${license.status.toLowerCase()}` }, { status: 403 });
     }
 
+    if (license.isFrozen) {
+      statusCode = 403;
+      errorType = "LICENSE_FROZEN";
+      return NextResponse.json({ success: false, message: "License is frozen" }, { status: 403 });
+    }
+
+    if (license.isLocked) {
+      statusCode = 403;
+      errorType = "LICENSE_LOCKED";
+      return NextResponse.json({ success: false, message: "License is locked" }, { status: 403 });
+    }
+
     if (license.expiresAt && new Date() > license.expiresAt) {
+      statusCode = 403;
+      errorType = "EXPIRED";
       return NextResponse.json({ success: false, message: "License has expired" }, { status: 403 });
     }
 
     if (installationId) {
-      let statusCode = 403;
-      let errorType = "";
       // Check machine binding
       const existingInstall = license.installations.find(i => i.installationId === installationId);
       if (!existingInstall) {
@@ -66,12 +100,10 @@ export async function POST(req: Request) {
     // Rate Limiting Check
     if (license.rateLimit && license.rateLimitWindow) {
       const now = new Date();
-      let windowMs = 24 * 60 * 60 * 1000; // days
-      if (license.rateLimitWindow === "hours") windowMs = 60 * 60 * 1000;
+      const isExpired = isRateLimitExpired(license.rateLimitResetAt, license.rateLimitWindow);
       
-      const timeSinceReset = now.getTime() - license.rateLimitResetAt.getTime();
-      
-      if (timeSinceReset > windowMs) {
+      if (isExpired) {
+        // Reset the window for the new calendar day/hour
         await prisma.license.update({ where: { id: license.id }, data: { rateLimitHits: 1, rateLimitResetAt: now } });
       } else {
         if (license.rateLimitHits >= license.rateLimit) {
@@ -88,6 +120,8 @@ export async function POST(req: Request) {
     const { githubRepo, githubToken } = license.product;
 
     if (!githubRepo) {
+      statusCode = 404;
+      errorType = "NO_REPO";
       return NextResponse.json({ success: false, message: "No repository linked to this product" }, { status: 404 });
     }
 
@@ -109,6 +143,8 @@ export async function POST(req: Request) {
     const releaseRes = await fetch(releaseUrl, { method: "GET", headers, cache: "no-store" });
 
     if (!releaseRes.ok) {
+      statusCode = 404;
+      errorType = "RELEASE_NOT_FOUND";
       return NextResponse.json({ success: false, message: "Release not found or accessible" }, { status: 404 });
     }
 
@@ -120,22 +156,21 @@ export async function POST(req: Request) {
     if (release.assets && release.assets.length > 0) {
       downloadUrl = release.assets[0].url;
       filename = release.assets[0].name;
-      headers["Accept"] = "application/octet-stream"; // Important for downloading assets
-    } else {
-      // For zipballs, we don't need octet-stream accept header, just the standard one or none.
+      headers["Accept"] = "application/octet-stream";
     }
 
-    // Now fetch the actual file stream (this will follow the AWS S3 redirect github gives)
+    // Now fetch the actual file stream
     const downloadRes = await fetch(downloadUrl, { method: "GET", headers });
 
     if (!downloadRes.ok) {
+      statusCode = downloadRes.status;
+      errorType = "DOWNLOAD_FAILED";
       return NextResponse.json({ success: false, message: "Failed to download the release file" }, { status: downloadRes.status });
     }
 
     // Stream the file back to the user
     const responseHeaders = new Headers(downloadRes.headers);
     responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
-    // Ensure we don't pass back any github specific encoding headers that might mess up the response
     responseHeaders.delete("content-encoding");
 
     return new NextResponse(downloadRes.body, {
@@ -144,6 +179,23 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
+    statusCode = 500;
+    errorType = "SERVER_ERROR";
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  } finally {
+    try {
+      await logApiRequest({
+        builderId: builderId || "unknown",
+        licenseId,
+        endpoint: "/api/v1/license/download",
+        ipAddress,
+        installationId: reqInstallationId,
+        statusCode,
+        errorType,
+        responseTimeMs: Date.now() - startTime
+      });
+    } catch (e) {
+      console.error("Failed to write audit log", e);
+    }
   }
 }
